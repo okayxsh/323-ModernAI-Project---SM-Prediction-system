@@ -1,197 +1,208 @@
 import Head from "next/head";
 import { useState, useRef, useCallback } from "react";
 import Papa from "papaparse";
-import { processCSV,        formatNumber as fmtIG } from "../lib/processCSV";
-import { processTikTokCSV,  formatNumber as fmtTT } from "../lib/processTikTokCSV";
+import { processCSV,       formatNumber as fmtIG } from "../lib/processCSV";
+import { processTikTokCSV, formatNumber as fmtTT } from "../lib/processTikTokCSV";
 import StatsOverview from "../components/StatsOverview";
 import ChartsSection from "../components/ChartsSection";
 import PostsTable    from "../components/PostsTable";
 import TikTokTable   from "../components/TikTokTable";
 import AIReport      from "../components/AIReport";
 
-/* ── Reusable atoms ─────────────────────────────────────────────────────── */
-function Logo() {
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-      <div style={{ width:32, height:32, borderRadius:10, background:"var(--ink-900)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.18)" }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="1"  y="9"  width="3" height="6" rx="1.2" fill="white" opacity="0.45"/>
-          <rect x="6"  y="5"  width="3" height="10" rx="1.2" fill="white" opacity="0.72"/>
-          <rect x="11" y="1"  width="3" height="14" rx="1.2" fill="white"/>
-          <circle cx="12.5" cy="1.5" r="1.8" fill="#f97316"/>
-        </svg>
-      </div>
-      <span style={{ fontFamily:"DM Sans,sans-serif", fontWeight:700, fontSize:"0.95rem", letterSpacing:"-0.02em", color:"var(--ink-900)" }}>
-        Pulse <span style={{ fontWeight:400, color:"var(--ink-400)" }}>Analytics</span>
-      </span>
-    </div>
-  );
-}
-
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
 function Spinner() {
-  return <span style={{ width:14, height:14, border:"2px solid rgba(255,255,255,0.3)", borderTopColor:"white", borderRadius:"50%", display:"inline-block" }} className="animate-spin" />;
-}
-
-function SectionLabel({ children, style }) {
   return (
-    <p style={{ fontSize:"0.65rem", fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:"var(--ink-400)", ...style }}>
-      {children}
-    </p>
+    <span style={{
+      width: 14, height: 14, borderRadius: "50%",
+      border: "2px solid rgba(255,255,255,0.3)",
+      borderTopColor: "#fff",
+      display: "inline-block",
+    }} className="spin" />
   );
 }
 
-/* ── Upload panel ───────────────────────────────────────────────────────── */
-function UploadPanel({ platform, stage, onFile, onReset, fileName, error }) {
-  const [dragging, setDragging] = useState(false);
-  const ref = useRef();
+/* ── Upload card ─────────────────────────────────────────────────────────── */
+function UploadCard({ platform, stage, error, fileName, onFile, onReset }) {
+  const [over, setOver] = useState(false);
+  const inputRef = useRef();
   const isIG = platform === "ig";
 
-  const cfg = isIG ? {
-    label:"Instagram", hint:"Instagram scraper CSV", emoji:"📸",
-    stripClass:"strip-ig", cardClass:"ig",
-    accentText:"#e1306c",
+  const meta = isIG ? {
+    name: "Instagram", hint: "Drop your Instagram scraper CSV",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="url(#ig-grad)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <defs>
+          <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#fcb045"/>
+            <stop offset="50%" stopColor="#fd1d1d"/>
+            <stop offset="100%" stopColor="#833ab4"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+        <circle cx="12" cy="12" r="4"/>
+        <circle cx="17.5" cy="6.5" r="1" fill="url(#ig-grad)" stroke="none"/>
+      </svg>
+    ),
   } : {
-    label:"TikTok", hint:"TikTok scraper CSV", emoji:"🎵",
-    stripClass:"strip-tt", cardClass:"tt",
-    accentText:"#69C9D0",
+    name: "TikTok", hint: "Drop your TikTok scraper CSV",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--text-1)">
+        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V9a8.19 8.19 0 004.79 1.52V7.07a4.85 4.85 0 01-1.02-.38z"/>
+      </svg>
+    ),
   };
 
-  const onDrop  = (e) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
-  const onOver  = (e) => { e.preventDefault(); setDragging(true); };
-  const onLeave = () => setDragging(false);
+  const handleDrop = (e) => {
+    e.preventDefault(); setOver(false);
+    onFile(e.dataTransfer.files[0]);
+  };
 
   return (
-    <div className={`platform-card ${cfg.cardClass}`} style={{ display:"flex", flexDirection:"column", minHeight:280 }}>
-      {/* Gradient strip top */}
-      <div className={cfg.stripClass} style={{ margin:"1.25rem 1.5rem 0" }} />
+    <div className={`upload-card ${isIG ? "ig" : "tt"} ${stage === "ready" ? "loaded" : ""}`}
+         style={{ padding: "28px" }}>
 
-      <div style={{ padding:"1.25rem 1.5rem 1.5rem", flex:1, display:"flex", flexDirection:"column" }}>
-        {/* Header row */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.1rem" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:"1.3rem" }}>{cfg.emoji}</span>
-            <div>
-              <div style={{ fontWeight:600, fontSize:"0.9rem", color:"var(--ink-900)" }}>{cfg.label}</div>
-              <div style={{ fontSize:"0.72rem", color:"var(--ink-400)" }}>{cfg.hint}</div>
-            </div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: "rgba(255,255,255,0.8)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}>
+            {meta.icon}
           </div>
-          {stage === "ready" && (
-            <button
-              onClick={onReset}
-              style={{ fontSize:"0.75rem", padding:"6px 12px", borderRadius:8, background:"var(--ink-50)", color:"var(--ink-500)", border:"1px solid var(--ink-100)", cursor:"pointer", transition:"all 0.15s" }}
-              onMouseEnter={e => { e.currentTarget.style.background="var(--ink-100)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background="var(--ink-50)"; }}
-            >
-              ↑ New file
-            </button>
-          )}
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text-1)" }}>{meta.name}</div>
+            <div style={{ fontSize: "0.72rem", color: "var(--text-4)", marginTop: 1 }}>{meta.hint}</div>
+          </div>
         </div>
-
-        {/* States */}
-        {stage === "idle" && (
-          <>
-            <div
-              className={`drop-zone${dragging ? " dragging" : ""}`}
-              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"2rem 1rem" }}
-              onDrop={onDrop} onDragOver={onOver} onDragLeave={onLeave}
-              onClick={() => ref.current?.click()}
-            >
-              <div style={{ fontSize:"2rem", marginBottom:"0.75rem" }} className="animate-float-a">📂</div>
-              <p style={{ fontWeight:600, fontSize:"0.875rem", color:"var(--ink-700)", marginBottom:4 }}>Drop CSV here</p>
-              <p style={{ fontSize:"0.78rem", color:"var(--ink-400)" }}>or click to browse</p>
-              <input ref={ref} type="file" accept=".csv" style={{ display:"none" }} onChange={e => onFile(e.target.files[0])} />
-            </div>
-            {error && (
-              <div style={{ marginTop:10, fontSize:"0.78rem", color:"#dc2626", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px" }}>
-                ⚠️ {error}
-              </div>
-            )}
-          </>
-        )}
-
-        {stage === "processing" && (
-          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
-            <div style={{ display:"flex", gap:6 }}>
-              {[0,1,2].map(i => (
-                <div key={i} className="animate-pulse-dot"
-                  style={{ width:8, height:8, borderRadius:"50%", background:"#f97316", animationDelay:`${i*0.25}s` }} />
-              ))}
-            </div>
-            <p style={{ fontSize:"0.825rem", color:"var(--ink-500)" }}>Parsing & computing metrics…</p>
-          </div>
-        )}
-
         {stage === "ready" && (
-          <div className="animate-slide-right" style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-              <span style={{ color:"#16a34a", fontSize:"1rem" }}>✓</span>
-              <span style={{ fontSize:"0.825rem", fontWeight:500, color:"var(--ink-700)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:220 }}>{fileName}</span>
-            </div>
-            <p style={{ fontSize:"0.75rem", color:"var(--ink-400)" }}>Scroll down to view your {cfg.label} analysis ↓</p>
-          </div>
+          <button className="btn btn-ghost" onClick={onReset}>↑ Replace</button>
         )}
       </div>
+
+      {/* States */}
+      {stage === "idle" && (
+        <>
+          <div
+            className={`drop-zone${over ? " over" : ""}`}
+            style={{ padding: "32px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+            onDragLeave={() => setOver(false)}
+            onDrop={handleDrop}
+          >
+            <div className="af" style={{ fontSize: "1.75rem", lineHeight: 1 }}>📂</div>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-2)" }}>Drop CSV here</p>
+              <p style={{ fontSize: "0.775rem", color: "var(--text-4)", marginTop: 3 }}>or click to browse</p>
+            </div>
+            <input ref={inputRef} type="file" accept=".csv" style={{ display: "none" }}
+                   onChange={e => onFile(e.target.files[0])} />
+          </div>
+          {error && (
+            <div style={{ marginTop: 12, padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.15)", fontSize: "0.78rem", color: "var(--error)" }}>
+              ⚠ {error}
+            </div>
+          )}
+        </>
+      )}
+
+      {stage === "processing" && (
+        <div style={{ padding: "36px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", gap: 7 }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} className="blink" style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: "var(--text-4)",
+                animationDelay: `${i * 0.22}s`,
+              }} />
+            ))}
+          </div>
+          <p style={{ fontSize: "0.825rem", color: "var(--text-4)" }}>Parsing CSV…</p>
+        </div>
+      )}
+
+      {stage === "ready" && (
+        <div className="asu" style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderRadius: 11, background: "rgba(22,163,74,0.06)", border: "1px solid rgba(22,163,74,0.15)" }}>
+          <div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(22,163,74,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5.5L4.2 7.5L8 3" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--success)" }}>File loaded</p>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-4)", marginTop: 2, wordBreak: "break-all" }}>{fileName}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── TikTok KPI cards ───────────────────────────────────────────────────── */
-function KpiCard({ emoji, label, value, sub, accent }) {
+/* ── KPI card (TikTok) ───────────────────────────────────────────────────── */
+function KpiCard({ icon, label, value, sub, highlight }) {
   return (
-    <div className="stat-card" style={{ padding:"1.1rem 1.25rem" }}>
-      <div style={{ fontSize:"1.1rem", marginBottom:"0.6rem" }}>{emoji}</div>
-      <SectionLabel style={{ marginBottom:4 }}>{label}</SectionLabel>
-      <div style={{ fontWeight:700, fontSize:"1.3rem", color: accent || "var(--ink-900)", fontVariantNumeric:"tabular-nums", marginBottom:2 }}>{value}</div>
-      {sub && <div style={{ fontSize:"0.72rem", color:"var(--ink-400)" }}>{sub}</div>}
+    <div className="card" style={{ padding: "18px 20px" }}>
+      <div style={{ fontSize: "1.1rem", marginBottom: 10 }}>{icon}</div>
+      <div className="eyebrow" style={{ marginBottom: 5 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: "1.35rem", color: highlight ? "var(--indigo)" : "var(--text-1)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: "0.72rem", color: "var(--text-4)", marginTop: 3 }}>{sub}</div>}
     </div>
   );
 }
 
+/* ── TikTok KPI grid ─────────────────────────────────────────────────────── */
 function TikTokKPIs({ stats: s }) {
   if (!s) return null;
-  const DAYS = { Sun:"Sunday", Mon:"Monday", Tue:"Tuesday", Wed:"Wednesday", Thu:"Thursday", Fri:"Friday", Sat:"Saturday" };
-  const hl = h => `${h%12||12}${h<12?"AM":"PM"}`;
+  const DAYS = { Sun: "Sunday", Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday" };
+  const hl = h => `${h % 12 || 12}${h < 12 ? "AM" : "PM"}`;
   return (
-    <div style={{ marginBottom:"1.5rem" }}>
-      <SectionLabel style={{ marginBottom:"0.875rem" }}>Overview</SectionLabel>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"0.75rem", marginBottom:"0.75rem" }}>
-        <KpiCard emoji="▶️" label="Total Plays"    value={fmtTT(s.totalPlays)}    sub={`avg ${fmtTT(s.avgPlays)}/post`} />
-        <KpiCard emoji="❤️" label="Total Likes"    value={fmtTT(s.totalLikes)}    sub={`avg ${fmtTT(s.avgLikes)}/post`} />
-        <KpiCard emoji="🔁" label="Total Shares"   value={fmtTT(s.totalShares)}   sub="all posts" />
-        <KpiCard emoji="💬" label="Comments"       value={fmtTT(s.totalComments)} sub="all posts" />
-        <KpiCard emoji="🔖" label="Total Saves"    value={fmtTT(s.totalSaves)}    sub="all posts" />
+    <div>
+      <p className="eyebrow" style={{ marginBottom: 14 }}>Overview</p>
+      <div className="kpi-5" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 12 }}>
+        <KpiCard icon="▶️" label="Plays"    value={fmtTT(s.totalPlays)}    sub={`avg ${fmtTT(s.avgPlays)}/post`} />
+        <KpiCard icon="❤️" label="Likes"    value={fmtTT(s.totalLikes)}    sub={`avg ${fmtTT(s.avgLikes)}/post`} />
+        <KpiCard icon="🔁" label="Shares"   value={fmtTT(s.totalShares)}   sub="total" />
+        <KpiCard icon="💬" label="Comments" value={fmtTT(s.totalComments)} sub="total" />
+        <KpiCard icon="🔖" label="Saves"    value={fmtTT(s.totalSaves)}    sub="total" />
       </div>
-      <SectionLabel style={{ margin:"1.25rem 0 0.875rem" }}>Best Patterns</SectionLabel>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"0.75rem" }}>
-        <KpiCard emoji="🕐" label="Best Hour"     value={s.bestHour ? hl(s.bestHour.hour) : "—"}          sub={s.bestHour ? `score ${s.bestHour.avgEngagement}` : ""} accent="var(--orange)" />
-        <KpiCard emoji="📅" label="Best Day"      value={s.bestDay  ? (DAYS[s.bestDay.day]||s.bestDay.day) : "—"} sub={s.bestDay ? `score ${s.bestDay.avgEngagement}` : ""} accent="var(--orange)" />
-        <KpiCard emoji="⏱️" label="Best Duration" value={s.bestDuration?.label || "—"}                     sub={s.bestDuration ? `score ${s.bestDuration.avgEngagement}` : ""} accent="var(--orange)" />
-        <KpiCard emoji="🎵" label="Best Audio"    value={s.bestAudio?.type?.split(" ")[0] || "—"}          sub={s.bestAudio ? `score ${s.bestAudio.avgEngagement}` : ""} accent="var(--orange)" />
+      <p className="eyebrow" style={{ margin: "20px 0 14px" }}>Best patterns</p>
+      <div className="kpi-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+        <KpiCard icon="🕐" label="Best hour"     value={s.bestHour ? hl(s.bestHour.hour) : "—"}                sub={s.bestHour ? `score ${s.bestHour.avgEngagement}` : ""} highlight />
+        <KpiCard icon="📅" label="Best day"      value={s.bestDay  ? (DAYS[s.bestDay.day] || s.bestDay.day) : "—"} sub={s.bestDay ? `score ${s.bestDay.avgEngagement}` : ""} highlight />
+        <KpiCard icon="⏱️" label="Best duration" value={s.bestDuration?.label || "—"}                          sub={s.bestDuration ? `score ${s.bestDuration.avgEngagement}` : ""} highlight />
+        <KpiCard icon="🎵" label="Best audio"    value={s.bestAudio?.type?.split(" ")[0] || "—"}               sub={s.bestAudio ? `score ${s.bestAudio.avgEngagement}` : ""} highlight />
       </div>
     </div>
   );
 }
 
-/* ── Audio breakdown ────────────────────────────────────────────────────── */
+/* ── Audio breakdown ─────────────────────────────────────────────────────── */
 function AudioBreakdown({ byAudio, best }) {
   const max = Math.max(...byAudio.map(a => a.avgEngagement), 1);
   return (
-    <div className="stat-card" style={{ padding:"1.5rem", marginTop:"1.5rem" }}>
-      <SectionLabel style={{ marginBottom:"1.25rem" }}>🎵 Original vs Licensed Audio</SectionLabel>
-      <div style={{ display:"flex", gap:"3rem", flexWrap:"wrap" }}>
+    <div className="card" style={{ padding: "22px 24px" }}>
+      <p className="eyebrow" style={{ marginBottom: 18 }}>🎵 Audio type performance</p>
+      <div style={{ display: "flex", gap: "3rem", flexWrap: "wrap" }}>
         {byAudio.map((a, i) => (
-          <div key={i} style={{ flex:1, minWidth:140 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-              <span style={{ fontSize:"1.1rem" }}>{a.type.includes("Original") ? "🎙️" : "🎵"}</span>
-              <span style={{ fontSize:"0.825rem", fontWeight:600, color:"var(--ink-700)" }}>{a.type}</span>
-              {best?.type === a.type && <span className="tag tag-orange">Best</span>}
+          <div key={i} style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span>{a.type.includes("Original") ? "🎙️" : "🎵"}</span>
+              <span style={{ fontSize: "0.825rem", fontWeight: 600, color: "var(--text-2)" }}>{a.type}</span>
+              {best?.type === a.type && <span className="badge badge-green">Best</span>}
             </div>
-            <div style={{ fontWeight:700, fontSize:"1.5rem", color: best?.type===a.type ? "var(--orange)" : "var(--ink-200)", fontVariantNumeric:"tabular-nums" }}>
+            <div style={{ fontWeight: 700, fontSize: "1.6rem", letterSpacing: "-0.03em", color: best?.type === a.type ? "var(--indigo)" : "var(--text-5)", fontVariantNumeric: "tabular-nums" }}>
               {a.avgEngagement.toLocaleString()}
             </div>
-            <div style={{ fontSize:"0.72rem", color:"var(--ink-400)", marginTop:2, marginBottom:12 }}>avg score · {a.count} posts</div>
-            <div className="score-bar-track">
-              <div className="score-bar-fill" style={{ width:`${(a.avgEngagement/max)*100}%`, background: best?.type===a.type ? "var(--orange)" : "var(--ink-200)" }} />
+            <div style={{ fontSize: "0.72rem", color: "var(--text-4)", marginTop: 3, marginBottom: 12 }}>avg score · {a.count} posts</div>
+            <div className="bar-track">
+              <div className="bar-fill" style={{ width: `${(a.avgEngagement / max) * 100}%`, background: best?.type === a.type ? "var(--indigo)" : "var(--text-5)" }} />
             </div>
           </div>
         ))}
@@ -200,62 +211,77 @@ function AudioBreakdown({ byAudio, best }) {
   );
 }
 
-/* ── Analysis section ───────────────────────────────────────────────────── */
+/* ── Analysis section ────────────────────────────────────────────────────── */
 function AnalysisSection({ platform, data, aiReport, aiLoading, onRunAI }) {
   const isIG = platform === "ig";
-  const stats = data?.stats;
-  const displayStats = isIG ? stats : (stats ? { ...stats, totalViews: stats.totalPlays, totalLikes: stats.totalLikes, avgViews: stats.avgPlays } : null);
+  const s = data?.stats;
+  const displayStats = isIG ? s : (s ? { ...s, totalViews: s.totalPlays, totalLikes: s.totalLikes, avgViews: s.avgPlays } : null);
 
   return (
-    <div
-      className="animate-fade-up opacity-0"
-      style={{ animationFillMode:"forwards", marginTop:"3rem", paddingTop:"2.5rem",
-        borderTop:"2.5px solid transparent",
-        borderImage: isIG
-          ? "linear-gradient(90deg,#833ab4,#fd1d1d,#fcb045) 1"
-          : "linear-gradient(90deg,#69C9D0,#EE1D52,#010101) 1",
-      }}
-    >
-      {/* Section heading */}
-      <div style={{ display:"flex", flexDirection:"row", alignItems:"flex-end", justifyContent:"space-between", gap:"1rem", flexWrap:"wrap", marginBottom:"2rem" }}>
+    <div className="au" style={{ animationFillMode: "both" }}>
+      {/* Divider with label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "48px 0 36px" }}>
+        <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className={isIG ? "line-ig" : "line-tt"} style={{ width: 20 }} />
+          <span className="eyebrow">{isIG ? "Instagram" : "TikTok"} Analysis</span>
+          <div className={isIG ? "line-ig" : "line-tt"} style={{ width: 20 }} />
+        </div>
+        <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+      </div>
+
+      {/* Heading row */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 32 }}>
         <div>
-          <SectionLabel style={{ marginBottom:6 }}>
-            {isIG ? "📸 Instagram" : "🎵 TikTok"} · {stats?.accounts?.slice(0,3).map(a=>`@${a}`).join(" · ")}
-          </SectionLabel>
-          <h2 style={{ fontFamily:"Instrument Serif,serif", fontSize:"clamp(1.5rem,3vw,2rem)", lineHeight:1.15, color:"var(--ink-900)", margin:0 }}>
-            Performance Analysis
+          <p className="eyebrow" style={{ marginBottom: 6 }}>
+            {s?.accounts?.slice(0, 3).map(a => `@${a}`).join(" · ")}
+          </p>
+          <h2 style={{ fontSize: "clamp(1.5rem,3vw,2rem)", fontWeight: 700, letterSpacing: "-0.03em", color: "var(--text-1)", lineHeight: 1.15 }}>
+            Performance Report
           </h2>
-          <p style={{ fontSize:"0.825rem", color:"var(--ink-400)", marginTop:4 }}>
-            {stats?.totalPosts} posts analysed
+          <p style={{ fontSize: "0.825rem", color: "var(--text-4)", marginTop: 5 }}>
+            {s?.totalPosts} posts analysed
           </p>
         </div>
-        <button onClick={onRunAI} disabled={aiLoading} className="btn-orange">
-          {aiLoading ? <><Spinner /> Analysing…</> : <>✦ AI Strategy Report</>}
+        <button className="btn btn-dark" onClick={onRunAI} disabled={aiLoading}>
+          {aiLoading ? <><Spinner /> Generating report…</> : <>✦ AI Strategy Report</>}
         </button>
       </div>
 
-      {/* Platform-specific KPIs */}
-      {!isIG && <TikTokKPIs stats={stats} />}
+      {/* KPIs */}
       {isIG  && <StatsOverview stats={displayStats} />}
+      {!isIG && <TikTokKPIs stats={s} />}
 
       {/* AI report */}
-      {(aiReport || aiLoading) && <div style={{ marginTop:"2rem" }}><AIReport report={aiReport} loading={aiLoading} /></div>}
+      {(aiReport || aiLoading) && (
+        <div style={{ marginTop: 28 }}>
+          <AIReport report={aiReport} loading={aiLoading} />
+        </div>
+      )}
 
       {/* Charts */}
-      <div style={{ marginTop:"2rem" }}><ChartsSection stats={displayStats} /></div>
+      <div style={{ marginTop: 28 }}>
+        <ChartsSection stats={displayStats} />
+      </div>
 
       {/* TikTok audio */}
-      {!isIG && stats?.byAudio?.length > 1 && <AudioBreakdown byAudio={stats.byAudio} best={stats.bestAudio} />}
+      {!isIG && s?.byAudio?.length > 1 && (
+        <div style={{ marginTop: 16 }}>
+          <AudioBreakdown byAudio={s.byAudio} best={s.bestAudio} />
+        </div>
+      )}
 
       {/* Table */}
-      <div style={{ marginTop:"2rem" }}>
-        {isIG ? <PostsTable posts={stats?.postsWithScore} /> : <TikTokTable posts={stats?.postsWithScore} />}
+      <div style={{ marginTop: 16 }}>
+        {isIG
+          ? <PostsTable  posts={s?.postsWithScore} />
+          : <TikTokTable posts={s?.postsWithScore} />}
       </div>
     </div>
   );
 }
 
-/* ── Page ───────────────────────────────────────────────────────────────── */
+/* ── Page ────────────────────────────────────────────────────────────────── */
 export default function Home() {
   const [igStage,  setIgStage]  = useState("idle");
   const [igFile,   setIgFile]   = useState("");
@@ -276,15 +302,15 @@ export default function Home() {
     if (!file.name.endsWith(".csv")) { setIgError("Please upload a .csv file."); return; }
     setIgError(""); setIgFile(file.name); setIgStage("processing"); setIgReport("");
     Papa.parse(file, {
-      header:true, skipEmptyLines:true,
-      complete:({ data: rows }) => {
+      header: true, skipEmptyLines: true,
+      complete: ({ data: rows }) => {
         try {
           const p = processCSV(rows);
           if (!p.posts.length) throw new Error("No valid posts found.");
           setIgData(p); setIgStage("ready");
-        } catch(e) { setIgError(e.message); setIgStage("idle"); }
+        } catch (e) { setIgError(e.message); setIgStage("idle"); }
       },
-      error:(e) => { setIgError(e.message); setIgStage("idle"); },
+      error: (e) => { setIgError(e.message); setIgStage("idle"); },
     });
   }, []);
 
@@ -293,18 +319,18 @@ export default function Home() {
     if (!file.name.endsWith(".csv")) { setTtError("Please upload a .csv file."); return; }
     setTtError(""); setTtFile(file.name); setTtStage("processing"); setTtReport("");
     Papa.parse(file, {
-      header:true, skipEmptyLines:true,
-      complete:({ data: rows }) => {
+      header: true, skipEmptyLines: true,
+      complete: ({ data: rows }) => {
         try {
-          const cols = Object.keys(rows[0]||{});
+          const cols = Object.keys(rows[0] || {});
           if (!cols.includes("playCount") && !cols.includes("diggCount"))
-            throw new Error("Doesn't look like a TikTok CSV.");
+            throw new Error("This doesn't look like a TikTok CSV.");
           const p = processTikTokCSV(rows);
           if (!p.posts.length) throw new Error("No valid posts found.");
           setTtData(p); setTtStage("ready");
-        } catch(e) { setTtError(e.message); setTtStage("idle"); }
+        } catch (e) { setTtError(e.message); setTtStage("idle"); }
       },
-      error:(e) => { setTtError(e.message); setTtStage("idle"); },
+      error: (e) => { setTtError(e.message); setTtStage("idle"); },
     });
   }, []);
 
@@ -312,11 +338,11 @@ export default function Home() {
     if (!igData?.stats) return;
     setIgAiLoad(true); setIgReport("");
     try {
-      const r = await fetch("/api/analyze", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ stats:igData.stats }) });
+      const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stats: igData.stats }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       setIgReport(j.analysis);
-    } catch(e) { setIgReport(`**Error:** ${e.message}`); }
+    } catch (e) { setIgReport(`**Error:** ${e.message}`); }
     finally { setIgAiLoad(false); }
   };
 
@@ -324,11 +350,11 @@ export default function Home() {
     if (!ttData?.stats) return;
     setTtAiLoad(true); setTtReport("");
     try {
-      const r = await fetch("/api/analyzeTikTok", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ stats:ttData.stats }) });
+      const r = await fetch("/api/analyzeTikTok", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stats: ttData.stats }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       setTtReport(j.analysis);
-    } catch(e) { setTtReport(`**Error:** ${e.message}`); }
+    } catch (e) { setTtReport(`**Error:** ${e.message}`); }
     finally { setTtAiLoad(false); }
   };
 
@@ -338,74 +364,101 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Pulse Analytics · Internal</title>
+        <title>Pulse · Analytics</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
 
-      {/* Navbar */}
-      <nav style={{ position:"sticky", top:0, zIndex:50, background:"rgba(250,249,247,0.88)", backdropFilter:"blur(14px)", borderBottom:"1px solid var(--ink-100)" }}>
-        <div style={{ maxWidth:1280, margin:"0 auto", padding:"0 1.5rem", height:56, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <Logo />
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <div style={{ width:7, height:7, borderRadius:"50%", background:"#4ade80", boxShadow:"0 0 0 2px rgba(74,222,128,0.2)" }} className="animate-pulse-dot" />
-            <span style={{ fontSize:"0.75rem", color:"var(--ink-400)" }}>Internal only</span>
+      {/* ── Navbar ─────────────────────────────────────────── */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 50,
+        background: "rgba(248,248,249,0.75)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 9,
+              background: "var(--text-1)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="1"  y="8"  width="2.5" height="5" rx="1" fill="white" opacity="0.4"/>
+                <rect x="5"  y="5"  width="2.5" height="8" rx="1" fill="white" opacity="0.7"/>
+                <rect x="9"  y="1"  width="2.5" height="12" rx="1" fill="white"/>
+                <circle cx="10.25" cy="1.25" r="1.5" fill="#6366f1"/>
+              </svg>
+            </div>
+            <span style={{ fontWeight: 700, fontSize: "0.9rem", letterSpacing: "-0.025em", color: "var(--text-1)" }}>
+              Pulse <span style={{ fontWeight: 400, color: "var(--text-4)" }}>Analytics</span>
+            </span>
+          </div>
+
+          {/* Status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className="blink" style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+            <span style={{ fontSize: "0.75rem", color: "var(--text-4)" }}>Internal</span>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="hero-bg" style={{ padding:"5rem 1.5rem 3.5rem" }}>
-        <div style={{ maxWidth:1280, margin:"0 auto" }}>
+      {/* ── Main ───────────────────────────────────────────── */}
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px" }}>
 
-          <div className="animate-fade-up opacity-0" style={{ animationDelay:"0.04s", animationFillMode:"forwards", marginBottom:"1.25rem" }}>
-            <span className="tag tag-dark">✦ Social Media Analytics · Internal</span>
+        {/* Hero */}
+        <div style={{ padding: "64px 0 52px" }}>
+          <div className="au d1" style={{ marginBottom: 14 }}>
+            <span className="badge badge-neutral">Internal Tool · Social Analytics</span>
           </div>
 
-          <div className="animate-fade-up opacity-0" style={{ animationDelay:"0.1s", animationFillMode:"forwards", marginBottom:"0.875rem" }}>
-            <h1 style={{ fontFamily:"Instrument Serif,serif", fontSize:"clamp(2.2rem,5vw,3.75rem)", lineHeight:1.1, color:"var(--ink-900)", margin:0, maxWidth:600 }}>
-              Turn raw data into<br />
-              <em style={{ fontStyle:"italic", color:"var(--orange)" }}>strategy</em>
-            </h1>
-          </div>
+          <h1 className="au d2" style={{
+            fontSize: "clamp(2rem,4.5vw,3.25rem)",
+            fontWeight: 800,
+            letterSpacing: "-0.04em",
+            color: "var(--text-1)",
+            lineHeight: 1.1,
+            marginBottom: 16,
+            maxWidth: 560,
+          }}>
+            Social media <br />
+            <span style={{ color: "var(--text-4)", fontWeight: 300 }}>performance insights</span>
+          </h1>
 
-          <div className="animate-fade-up opacity-0" style={{ animationDelay:"0.17s", animationFillMode:"forwards", marginBottom:"3rem" }}>
-            <p style={{ fontSize:"0.975rem", color:"var(--ink-500)", maxWidth:460, lineHeight:1.65, margin:0 }}>
-              Upload your Instagram and TikTok CSV exports. We compute engagement scores across every post and generate a free AI strategy report tailored to your actual data.
-            </p>
-          </div>
-
-          {/* Two upload panels */}
-          <div className="animate-fade-up opacity-0" style={{ animationDelay:"0.24s", animationFillMode:"forwards", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.25rem", maxWidth:820 }}>
-            <UploadPanel platform="ig" stage={igStage} onFile={handleIgFile} onReset={resetIG} fileName={igFile} error={igError} />
-            <UploadPanel platform="tt" stage={ttStage} onFile={handleTtFile} onReset={resetTT} fileName={ttFile} error={ttError} />
-          </div>
-
-          {/* Fine print */}
-          <div className="animate-fade-up opacity-0" style={{ animationDelay:"0.32s", animationFillMode:"forwards", marginTop:"1.1rem", display:"flex", flexWrap:"wrap", gap:"1.5rem" }}>
-            {["Compatible with Apify & Phantombuster exports","All parsing happens in your browser","No data stored or sent externally"].map((t,i) => (
-              <span key={i} style={{ fontSize:"0.72rem", color:"var(--ink-300)", display:"flex", alignItems:"center", gap:5 }}>
-                <span style={{ color:"var(--ink-200)" }}>—</span>{t}
-              </span>
-            ))}
-          </div>
+          <p className="au d3" style={{ fontSize: "0.975rem", color: "var(--text-3)", maxWidth: 440, lineHeight: 1.65, marginBottom: 0 }}>
+            Upload Instagram and TikTok CSV exports. Get engagement breakdowns, pattern analysis, and a free AI strategy report — all in your browser.
+          </p>
         </div>
-      </section>
 
-      {/* Analysis output */}
-      <main style={{ maxWidth:1280, margin:"0 auto", padding:"0 1.5rem 6rem" }}>
+        {/* Upload grid */}
+        <div className="upload-grid au d4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 820, marginBottom: 8 }}>
+          <UploadCard platform="ig" stage={igStage} error={igError} fileName={igFile} onFile={handleIgFile} onReset={resetIG} />
+          <UploadCard platform="tt" stage={ttStage} error={ttError} fileName={ttFile} onFile={handleTtFile} onReset={resetTT} />
+        </div>
 
+        {/* Fine print */}
+        <div className="au d5" style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 0, paddingLeft: 2 }}>
+          {["All parsing happens in your browser", "No data stored externally", "Compatible with Apify & Phantombuster"].map((t, i) => (
+            <span key={i} style={{ fontSize: "0.72rem", color: "var(--text-5)", display: "flex", alignItems: "center", gap: 5 }}>
+              <span>—</span> {t}
+            </span>
+          ))}
+        </div>
+
+        {/* Analysis sections */}
         {igStage === "ready" && igData?.stats && (
           <AnalysisSection platform="ig" data={igData} aiReport={igReport} aiLoading={igAiLoad} onRunAI={runIgAI} />
         )}
-
         {ttStage === "ready" && ttData?.stats && (
           <AnalysisSection platform="tt" data={ttData} aiReport={ttReport} aiLoading={ttAiLoad} onRunAI={runTtAI} />
         )}
 
+        {/* Empty nudge */}
         {igStage !== "ready" && ttStage !== "ready" && (
-          <div className="animate-fade-in opacity-0" style={{ animationDelay:"0.5s", animationFillMode:"forwards", textAlign:"center", padding:"5rem 0 2rem" }}>
-            <div style={{ fontSize:"2rem", marginBottom:"1rem", color:"var(--ink-200)" }}>↑</div>
-            <p style={{ color:"var(--ink-300)", fontSize:"0.875rem" }}>Upload a CSV above to see your analysis</p>
+          <div className="ai d7" style={{ textAlign: "center", paddingTop: "80px", paddingBottom: "20px" }}>
+            <p style={{ fontSize: "0.825rem", color: "var(--text-5)" }}>Upload a CSV above to begin ↑</p>
           </div>
         )}
       </main>
