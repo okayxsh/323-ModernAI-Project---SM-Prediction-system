@@ -1,27 +1,29 @@
 import { hourLabel } from "../lib/processCSV";
 
-function BarChart({ data, xKey, yKey, label, color = "#f97316", formatX }) {
-  if (!data?.length) return <div className="text-xs text-ink-300 py-6 text-center">No data</div>;
+function BarChart({ data, xKey, yKey, label, formatX }) {
+  if (!data?.length) return (
+    <div style={{ fontSize: "0.78rem", color: "var(--text-5)", padding: "24px 0", textAlign: "center" }}>No data</div>
+  );
   const max = Math.max(...data.map(d => d[yKey]), 1);
   return (
     <div>
-      <p className="text-xs font-600 text-ink-500 uppercase tracking-wider mb-4">{label}</p>
-      <div className="flex items-end gap-1.5 h-36">
+      <p className="eyebrow" style={{ marginBottom: 16 }}>{label}</p>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 110 }}>
         {data.map((d, i) => {
           const pct = (d[yKey] / max) * 100;
           return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${formatX ? formatX(d[xKey]) : d[xKey]}: ${d[yKey]}`}>
-              <div className="w-full relative flex items-end justify-center" style={{ height: "112px" }}>
-                <div
-                  className="w-full rounded-t-md transition-all duration-700"
-                  style={{
-                    height: `${Math.max(pct, 2)}%`,
-                    background: pct > 75 ? color : pct > 40 ? "#fdba74" : "#fed7aa",
-                    opacity: d.count === 0 ? 0.2 : 1,
-                  }}
-                />
-              </div>
-              <span className="text-[9px] text-ink-400 truncate w-full text-center leading-tight">
+            <div key={i}
+              title={`${formatX ? formatX(d[xKey]) : d[xKey]}: ${d[yKey]}`}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, height: "100%", justifyContent: "flex-end" }}
+            >
+              <div style={{
+                width: "100%",
+                height: `${Math.max(pct, 3)}%`,
+                borderRadius: "4px 4px 2px 2px",
+                background: pct > 80 ? "var(--indigo)" : pct > 45 ? "rgba(99,102,241,0.38)" : "rgba(0,0,0,0.07)",
+                transition: "height .8s cubic-bezier(0.4,0,0.2,1)",
+              }} />
+              <span style={{ fontSize: "0.6rem", color: "var(--text-5)", whiteSpace: "nowrap", overflow: "hidden", width: "100%", textAlign: "center", fontFamily: "'Geist Mono',monospace" }}>
                 {formatX ? formatX(d[xKey]) : d[xKey]}
               </span>
             </div>
@@ -32,113 +34,89 @@ function BarChart({ data, xKey, yKey, label, color = "#f97316", formatX }) {
   );
 }
 
-function HorizontalBar({ items, valueKey, labelKey, color = "#f97316" }) {
-  if (!items?.length) return <div className="text-xs text-ink-300 py-4 text-center">No data</div>;
+function HorizBar({ items, valueKey, labelKey }) {
+  if (!items?.length) return null;
   const max = Math.max(...items.map(i => i[valueKey]), 1);
   return (
-    <div className="space-y-2.5">
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <div className="text-xs text-ink-500 w-24 shrink-0 truncate font-500">#{item[labelKey]}</div>
-          <div className="flex-1 score-bar-track">
-            <div
-              className="score-bar-fill"
-              style={{ width: `${(item[valueKey] / max) * 100}%`, background: i === 0 ? color : i < 3 ? "#fdba74" : "#fed7aa" }}
-            />
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 100, fontSize: "0.72rem", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0, fontFamily: "'Geist Mono',monospace" }}>
+            #{item[labelKey]}
           </div>
-          <div className="text-xs font-mono text-ink-400 w-12 text-right shrink-0">{item[valueKey].toLocaleString()}</div>
+          <div className="bar-track" style={{ flex: 1 }}>
+            <div className="bar-fill" style={{
+              width: `${(item[valueKey] / max) * 100}%`,
+              background: i === 0 ? "var(--indigo)" : i < 3 ? "rgba(99,102,241,0.42)" : "rgba(0,0,0,0.09)",
+            }} />
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-4)", fontFamily: "'Geist Mono',monospace", width: 52, textAlign: "right", flexShrink: 0 }}>
+            {item[valueKey].toLocaleString()}
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function SectionTitle({ children }) {
-  return <h3 className="font-display font-700 text-xs uppercase tracking-widest text-ink-400 mb-6">{children}</h3>;
-}
-
-function Card({ children, className = "" }) {
-  return <div className={`stat-card p-6 ${className}`}>{children}</div>;
+function ChartCard({ children }) {
+  return (
+    <div className="card" style={{ padding: "22px 24px" }}>
+      {children}
+    </div>
+  );
 }
 
 export default function ChartsSection({ stats: s }) {
+  if (!s) return null;
   return (
-    <div className="space-y-6">
-      <SectionTitle>Engagement Patterns</SectionTitle>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p className="eyebrow" style={{ marginBottom: 4 }}>Engagement patterns</p>
 
-      {/* Hour + Day charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Card>
-          <BarChart
-            data={s.byHour}
-            xKey="hour"
-            yKey="avgEngagement"
-            label="Avg engagement by hour"
-            formatX={h => hourLabel(h)}
-          />
-        </Card>
-        <Card>
-          <BarChart
-            data={s.byDay}
-            xKey="day"
-            yKey="avgEngagement"
-            label="Avg engagement by day of week"
-          />
-        </Card>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <ChartCard>
+          <BarChart data={s.byHour} xKey="hour" yKey="avgEngagement" label="By hour of day" formatX={h => hourLabel(h)} />
+        </ChartCard>
+        <ChartCard>
+          <BarChart data={s.byDay} xKey="day" yKey="avgEngagement" label="By day of week" />
+        </ChartCard>
       </div>
 
-      {/* Duration + Hashtag buckets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {s.durationBuckets?.length > 0 && (
-          <Card>
-            <BarChart
-              data={s.durationBuckets}
-              xKey="label"
-              yKey="avgEngagement"
-              label="Avg engagement by video duration"
-            />
-          </Card>
+          <ChartCard>
+            <BarChart data={s.durationBuckets} xKey="label" yKey="avgEngagement" label="By video duration" />
+          </ChartCard>
         )}
         {s.hashtagBuckets?.length > 0 && (
-          <Card>
-            <BarChart
-              data={s.hashtagBuckets}
-              xKey="label"
-              yKey="avgEngagement"
-              label="Avg engagement by hashtag count"
-            />
-          </Card>
+          <ChartCard>
+            <BarChart data={s.hashtagBuckets} xKey="label" yKey="avgEngagement" label="By hashtag count" />
+          </ChartCard>
         )}
       </div>
 
-      {/* Content type comparison */}
       {s.byType?.length > 1 && (
-        <Card>
-          <p className="text-xs font-600 text-ink-500 uppercase tracking-wider mb-5">Content type comparison</p>
-          <div className="flex gap-6 flex-wrap">
+        <ChartCard>
+          <p className="eyebrow" style={{ marginBottom: 18 }}>Content type breakdown</p>
+          <div style={{ display: "flex", gap: "2.5rem", flexWrap: "wrap" }}>
             {s.byType.map((t, i) => (
-              <div key={i} className="flex-1 min-w-[120px]">
-                <div className="text-2xl font-display font-700" style={{ color: i === 0 ? "#f97316" : "#bfbab0" }}>
+              <div key={i}>
+                <div style={{ fontWeight: 700, fontSize: "1.6rem", letterSpacing: "-0.035em", color: i === 0 ? "var(--indigo)" : "var(--text-5)", fontVariantNumeric: "tabular-nums" }}>
                   {t.avgEngagement.toLocaleString()}
                 </div>
-                <div className="text-xs text-ink-500 mt-1 font-500">{t.type}</div>
-                <div className="text-xs text-ink-300">{t.count} posts</div>
+                <div style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: 3, fontWeight: 500 }}>{t.type}</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-5)", marginTop: 1 }}>{t.count} posts</div>
               </div>
             ))}
           </div>
-        </Card>
+        </ChartCard>
       )}
 
-      {/* Top hashtags */}
       {s.topHashtags?.length > 0 && (
-        <Card>
-          <p className="text-xs font-600 text-ink-500 uppercase tracking-wider mb-5">Top hashtags by avg engagement</p>
-          <HorizontalBar
-            items={s.topHashtags}
-            valueKey="avgEngagement"
-            labelKey="tag"
-          />
-        </Card>
+        <ChartCard>
+          <p className="eyebrow" style={{ marginBottom: 18 }}>Top hashtags by avg engagement</p>
+          <HorizBar items={s.topHashtags} valueKey="avgEngagement" labelKey="tag" />
+        </ChartCard>
       )}
     </div>
   );
